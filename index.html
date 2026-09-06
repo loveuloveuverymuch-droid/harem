@@ -1751,27 +1751,49 @@ Hiển nhiên, đây là một câu chuyện cổ tích dang dở đang chờ ng
                     : ``;
                 
                 const card = `
-                    <div class="aesthetic-card p-5 flex flex-col md:flex-row justify-between items-center gap-4 overflow-hidden relative">
-                        <div class="flex-grow text-center md:text-left space-y-3 w-full">
-                            <div class="kawaii-text text-[10px] text-pink-300 md:text-left hidden md:block">⋆ ˚｡⋆୨♡୧⋆ ˚｡⋆</div>
-                            <div class="flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-0">
-                                <h3 class="font-title text-3xl text-pink-600">${char.name}</h3>
-                                ${newTagHTML} 
+                    <div class="aesthetic-card p-5 flex flex-col gap-3 overflow-hidden relative">
+                        <!-- Khối Thông Tin & Nút Bấm -->
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+                            <div class="flex-grow text-center md:text-left space-y-3 w-full">
+                                <div class="kawaii-text text-[10px] text-pink-300 md:text-left hidden md:block">⋆ ˚｡⋆୨♡୧⋆ ˚｡⋆</div>
+                                <div class="flex flex-col md:flex-row items-center justify-center md:justify-start gap-1 md:gap-0">
+                                    <h3 class="font-title text-3xl text-pink-600">${char.name}</h3>
+                                    ${newTagHTML} 
+                                </div>
+                                <div class="flex flex-wrap justify-center md:justify-start gap-1.5">${tagsHTML}</div>
                             </div>
-                            <div class="flex flex-wrap justify-center md:justify-start gap-1.5">${tagsHTML}</div>
+                            <div class="flex flex-col gap-2 w-full md:w-48 shrink-0 z-10">
+                                <div class="flex gap-2 w-full">
+                                    ${linkButtonsHTML}
+                                </div>
+                                <div class="flex gap-2 w-full">
+                                    <button onclick="showBackground(${char.id})" class="btn-cream ${hasGuide ? 'flex-1' : 'w-full'} py-2 text-[11px] font-bold transition">Background</button>
+                                    ${guideBtnHTML}
+                                </div>
+                                <div class="flex gap-2 w-full">
+                                    <button onclick="vote(${char.id})" class="btn-cream flex-1 py-2 flex items-center justify-center gap-1 group border-pink-200">
+                                        <i class="fas fa-heart ${hasLiked ? 'text-pink-600 scale-110' : 'text-pink-200'} group-hover:text-pink-400 transition"></i>
+                                        <span class="text-[11px] font-bold text-pink-500">${voteCount} tim</span>
+                                    </button>
+                                    <button onclick="toggleComments(${char.id})" class="btn-cream flex-1 py-2 flex items-center justify-center gap-1 group border-pink-200 hover:bg-pink-50 transition">
+                                        <i class="fas fa-comment-dots text-pink-400"></i>
+                                        <span class="text-[11px] font-bold text-pink-500">Bình luận</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex flex-col gap-2 w-full md:w-48 shrink-0 z-10">
-                            <div class="flex gap-2 w-full">
-                                ${linkButtonsHTML}
+                        
+                        <!-- Khối Bình Luận (Ẩn mặc định) -->
+                        <div id="comment-section-${char.id}" class="hidden flex-col gap-2 w-full border-t-2 border-dashed border-pink-200 pt-3 mt-1">
+                            <div id="comment-list-${char.id}" class="max-h-32 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                                <div class="text-xs text-center text-pink-300 italic">Chưa có tâm tình nào. Hãy là người đầu tiên!</div>
                             </div>
-                            <div class="flex gap-2 w-full">
-                                <button onclick="showBackground(${char.id})" class="btn-cream ${hasGuide ? 'flex-1' : 'w-full'} py-2 text-[11px] font-bold transition">Background</button>
-                                ${guideBtnHTML}
+                            <div class="flex gap-2 mt-1">
+                                <input type="text" id="comment-input-${char.id}" placeholder="Viết ẩn danh (tối đa 150 ký tự)..." maxlength="150" class="flex-1 bg-pink-50 border-2 border-dashed border-pink-200 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-pink-400 transition text-[#704F55] placeholder-pink-300">
+                                <button onclick="submitComment(${char.id})" class="btn-melody px-4 py-1.5 text-xs font-bold rounded-xl flex items-center justify-center hover:scale-105 transition-transform">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
                             </div>
-                            <button onclick="vote(${char.id})" class="btn-cream w-full py-2 flex items-center justify-center gap-2 group border-pink-200">
-                                <i class="fas fa-heart ${hasLiked ? 'text-pink-600 scale-110' : 'text-pink-200'} group-hover:text-pink-400 transition"></i>
-                                <span class="text-sm font-bold text-pink-500">${voteCount} lượt thích</span>
-                            </button>
                         </div>
                     </div>
                 `;
@@ -1938,6 +1960,94 @@ function vote(id) {
                     return (currentVotes || 0) + 1;
                 });
             }
+        }
+        // ==========================================
+        // 🌟 TÍNH NĂNG BÌNH LUẬN ẨN DANH REAL-TIME 🌟
+        // ==========================================
+        let globalComments = {};
+
+        // Lắng nghe dữ liệu comment từ Firebase
+        db.ref('character_comments').on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                globalComments = snapshot.val();
+            } else {
+                globalComments = {};
+            }
+            updateAllOpenComments(); // Tự động load nếu có người đang mở khung bình luận
+        });
+
+        // Đóng/Mở khung bình luận
+        function toggleComments(id) {
+            const section = document.getElementById(`comment-section-${id}`);
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                section.classList.add('flex');
+                renderCommentsForChar(id);
+            } else {
+                section.classList.add('hidden');
+                section.classList.remove('flex');
+            }
+        }
+
+        // Đẩy comment lên Firebase
+        function submitComment(id) {
+            const inputEl = document.getElementById(`comment-input-${id}`);
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            db.ref(`character_comments/${id}`).push({
+                text: text,
+                time: Date.now()
+            });
+
+            inputEl.value = ''; // Xóa chữ sau khi bấm Gửi
+        }
+
+        // Đổ dữ liệu comment ra màn hình
+        function renderCommentsForChar(id) {
+            const listEl = document.getElementById(`comment-list-${id}`);
+            if (!listEl) return; 
+
+            const charComments = globalComments[id];
+            if (!charComments) {
+                listEl.innerHTML = `<div class="text-xs text-center text-pink-300 italic py-2">Chưa có tâm tình nào. Hãy là người đầu tiên!</div>`;
+                return;
+            }
+
+            // Sắp xếp comment cũ ở trên, mới ở dưới
+            const commentsArray = Object.values(charComments).sort((a, b) => a.time - b.time);
+            
+            listEl.innerHTML = commentsArray.map(c => `
+                <div class="bg-white border border-dashed border-pink-200 rounded-xl p-2.5 text-[11.5px] leading-relaxed text-[#704F55] shadow-sm">
+                    <span class="font-bold text-pink-400 mr-1"><i class="fas fa-mask text-[10px]"></i> Ẩn danh:</span> ${escapeHTML(c.text)}
+                </div>
+            `).join('');
+
+            // Tự động cuộn chuột xuống comment mới nhất
+            listEl.scrollTop = listEl.scrollHeight;
+        }
+
+        // Cập nhật các khung comment đang mở
+        function updateAllOpenComments() {
+            database.forEach(char => {
+                const section = document.getElementById(`comment-section-${char.id}`);
+                if (section && !section.classList.contains('hidden')) {
+                    renderCommentsForChar(char.id);
+                }
+            });
+        }
+
+        // Mã hóa ký tự đặc biệt (Chống hacker chèn link xấu)
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
         }
     </script>
     <!-- 🌟 MODAL ART GALLERY 🌟 -->
